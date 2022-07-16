@@ -91,13 +91,13 @@ func GetImageId(sourceLink string) (int64, error) {
 
 
 func GetImageInfo(Id int64) (*model.ImageInfo, error) {
-	val, err := Rbd.HGetAll(context.Background(), ImageInfoHash(Id)).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return nil, nil
-		}
-		return nil, err
-	}
+	//val, err := Rbd.HGetAll(context.Background(), ImageInfoHash(Id)).Result()
+	//if err != nil {
+	//	if err == redis.Nil {
+	//		return nil, nil
+	//	}
+	//	return nil, err
+	//}
 	info := &model.ImageInfo{}
 	//info.Owner = common.HexToAddress(val["Owner"])
 	//info.Image = val["Image"]
@@ -133,31 +133,31 @@ func GetImageInfo(Id int64) (*model.ImageInfo, error) {
 }
 
 func SetImageInfo(info model.ImageInfo) (bool, error) {
-	values := make([]interface{}, 16)
-	values[0] = "Owner"
-	values[1] = info.Owner.Hex()
-	values[2] = "Image"
-	values[3] = info.Image
-	values[4] = "TokenId"
-	values[5] = strconv.FormatInt(info.TokenId, 10)
-	values[6] = "DataId"
-	values[7] = strconv.FormatInt(info.DataId, 10)
-	values[8] = "MinedBlock"
-	values[9] = strconv.FormatInt(info.MinedBlock, 10)
-	values[10] = "SellStatus"
-	values[11] = strconv.FormatBool(info.SellStatus)
-	values[12] = "Price"
-	values[13] = info.Price.String()
-	values[14] = "PriceType"
-	values[15] = info.PriceType
-	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(info.DataId), values...).Result()
-	if err != nil {
-		return check, err
-	}
-	_, err = Rbd.ZAdd(context.Background(), NFTByAddressZset(info.Owner), &redis.Z{Member: info.DataId, Score: float64(time.Now().UnixNano())}).Result()
-	if err != nil {
-		return false, err
-	}
+	//values := make([]interface{}, 16)
+	//values[0] = "Owner"
+	//values[1] = info.Owner.Hex()
+	//values[2] = "Image"
+	//values[3] = info.Image
+	//values[4] = "TokenId"
+	//values[5] = strconv.FormatInt(info.TokenId, 10)
+	//values[6] = "DataId"
+	//values[7] = strconv.FormatInt(info.DataId, 10)
+	//values[8] = "MinedBlock"
+	//values[9] = strconv.FormatInt(info.MinedBlock, 10)
+	//values[10] = "SellStatus"
+	//values[11] = strconv.FormatBool(info.SellStatus)
+	//values[12] = "Price"
+	//values[13] = info.Price.String()
+	//values[14] = "PriceType"
+	//values[15] = info.PriceType
+	//check, err := Rbd.HMSet(context.Background(), ImageInfoHash(info.DataId), values...).Result()
+	//if err != nil {
+	//	return check, err
+	//}
+	//_, err = Rbd.ZAdd(context.Background(), NFTByAddressZset(info.Owner), &redis.Z{Member: info.DataId, Score: float64(time.Now().UnixNano())}).Result()
+	//if err != nil {
+	//	return false, err
+	//}
 	return true, nil
 }
 
