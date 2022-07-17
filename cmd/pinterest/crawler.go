@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -22,7 +23,7 @@ var (
 	Csrftoken  = "e7525248933e9ce4fe7cd9507627bd03"
 	Category   = "Magazines"
 	Keyword    = "magazines cover poses vogue"
-	source     = flag.String("source", "/home/tamnb/projects/src/github.com/nguyenbatam90/go-pinterest/sample_crawl_source.csv", "source category Pinterest")
+	source     = flag.String("source", "D:\\projects\\src\\github.com\\nguyenbatam90\\go-pinterest\\sample_crawl_source.csv", "source category Pinterest")
 	size       = flag.Int("size", 50, "max items per query related,search")
 )
 
@@ -72,40 +73,74 @@ func main() {
 			fmt.Println(keyword)
 			fmt.Println("err", err)
 		}
-		fmt.Println(keyword , "search  " , len(imageSearchinfos))
-		fmt.Println(keyword , "search next " , len(imageNextSearchInfos))
+		fmt.Println(keyword, "search  ", len(imageSearchinfos))
+		fmt.Println(keyword, "search next ", len(imageNextSearchInfos))
 		newIds := make(map[string]bool)
 		for i := 0; i < len(imageSearchinfos); i++ {
-			id := imageSearchinfos[i].SourceId
-			//if !IdRelatedCrawl[id] {
-				IdRelatedCrawl[id]=true
+			imageInfo := imageSearchinfos[i]
+			id := imageInfo.SourceId
+			if !IdRelatedCrawl[id] {
+				IdRelatedCrawl[id] = true
 				IdCrawled[id] = true
 				newIds[id] = true
-			//}
+			}
+			if id, _ := db.GetImageId(imageInfo.SourceLink); id > 0 {
+				db.AddImageToCategory(imageInfo, Category)
+				continue
+			}
+			dataId, _ := db.GetDataId()
+			imageInfo.Id = dataId + 1
+			imageInfo.CrawledTime = time.Now().UnixNano()
+			db.SetDataId(dataId)
+			db.SetImageInfo(imageInfo)
+			db.AddImageToCategory(imageInfo, Category)
 		}
 		for i := 0; i < len(imageNextSearchInfos); i++ {
-			id := imageNextSearchInfos[i].SourceId
-			//if !IdRelatedCrawl[id] {
-				IdRelatedCrawl[id]=true
+			imageInfo := imageNextSearchInfos[i]
+			id := imageInfo.SourceId
+			if !IdRelatedCrawl[id] {
+				IdRelatedCrawl[id] = true
 				IdCrawled[id] = true
 				newIds[id] = true
-			//}
+			}
+			if id, _ := db.GetImageId(imageInfo.SourceLink); id > 0 {
+				db.AddImageToCategory(imageInfo, Category)
+				continue
+			}
+			dataId, _ := db.GetDataId()
+			imageInfo.Id = dataId + 1
+			imageInfo.CrawledTime = time.Now().UnixNano()
+			db.SetDataId(dataId)
+			db.SetImageInfo(imageInfo)
+			db.AddImageToCategory(imageInfo, Category)
 		}
 
 		for pinId, _ := range newIds {
-			IdRelatedCrawl[pinId]=true
 			relatedImages, err := GetPinFromRelatedPin(pinId, 50)
 			if err != nil {
 				fmt.Println(pinId)
 				fmt.Println("err", err)
 			}
 			for i := 0; i < len(relatedImages); i++ {
-				IdCrawled[relatedImages[i].SourceId]=true
+				IdCrawled[relatedImages[i].SourceId] = true
+				imageInfo := relatedImages[i]
+				if id, _ := db.GetImageId(imageInfo.SourceLink); id > 0 {
+					db.AddImageToCategory(imageInfo, Category)
+					continue
+				}
+				dataId, _ := db.GetDataId()
+				imageInfo.Id = dataId + 1
+				imageInfo.CrawledTime = time.Now().UnixNano()
+				db.SetDataId(dataId)
+				db.SetImageInfo(imageInfo)
+				db.AddImageToCategory(imageInfo, Category)
 			}
+			IdRelatedCrawl[pinId] = true
 		}
-		fmt.Println("new",len(newIds), " total",len(IdCrawled))
+		fmt.Println("new", len(newIds), " total", len(IdCrawled))
+
 	}
-	fmt.Println("total",len(IdCrawled))
+	fmt.Println("total", len(IdCrawled))
 }
 
 func RefreshSessionKey(url string) error {
@@ -177,7 +212,7 @@ func RefreshCsrfToken(url string) error {
 }
 func GetPinFromKeyWordSearch(keyword string) ([]model.ImageInfo, error) {
 
-	uri := "https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=" +url.QueryEscape("/search/pins/?q=" + url.QueryEscape(keyword))
+	uri := "https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=" + url.QueryEscape("/search/pins/?q="+url.QueryEscape(keyword))
 	resp, err := http.Get(uri)
 	if err != nil {
 		return nil, err
@@ -202,20 +237,46 @@ func GetPinFromKeyWordSearch(keyword string) ([]model.ImageInfo, error) {
 	imageInfos := make([]model.ImageInfo, 0)
 	for i := 0; i < len(results); i++ {
 		info := results[i].(map[string]interface{})
-		//images:=info["images"]
+		if info["type"].(string) != "pin" {
+			continue
+		}
+		images := info["images"].(map[string]interface{})
 		pinner := info["pinner"].(map[string]interface{})
-
-		//createdTime := info["created_at"]
-
+		board := info["board"].(map[string]interface{})
 		imageInfo := model.ImageInfo{}
 		imageInfo.Title = info["title"].(string)
-		imageInfo.SourceId = info["id"].(string)
-		imageInfo.SourceLink = "" + imageInfo.SourceId
-		//createdTime := info["created_at"]
+		imageInfo.SourceImageSizeDeTails = make([]model.ImageSize, 0)
+		setUrlImage := make(map[string]bool)
+		for _typeImage, _ := range images {
+			sizeValue := images[_typeImage].(map[string]interface{})
+			if _typeImage == "orig" {
+				imageInfo.Image = sizeValue["url"].(string)
+			}
+			imageSize := model.ImageSize{}
+			imageSize.Url = sizeValue["url"].(string)
+			if setUrlImage[imageSize.Url] {
+				continue
+			}
+			setUrlImage[imageSize.Url] = true
+			imageSize.Width = int(sizeValue["width"].(float64))
+			imageSize.Height = int(sizeValue["height"].(float64))
+			imageInfo.SourceImageSizeDeTails = append(imageInfo.SourceImageSizeDeTails, imageSize)
+		}
 
+		imageInfo.SourceId = info["id"].(string)
+		imageInfo.SourceLink = "https://www.pinterest.com/pin/" + imageInfo.SourceId
+		createdTime := info["created_at"].(string) //Fri, 25 Sep 2020 16:51:58 +0000
+		created, err := time.Parse(time.RFC1123, createdTime)
+		if err != nil {
+			fmt.Println("err when parser time", createdTime)
+			continue
+		}
+		imageInfo.CreatedTime = created.UnixNano()
 		imageInfo.Source = model.Pinterest
 		imageInfo.SourceOwnerName = pinner["full_name"].(string)
-		imageInfo.SourceOwnerLink = pinner["username"].(string)
+		imageInfo.SourceOwnerLink = "https://www.pinterest.com/" + pinner["username"].(string)
+		imageInfo.SourceAlbumName = board["name"].(string)
+		imageInfo.SourceAlbumLink = "https://www.pinterest.com/" + board["url"].(string)
 		imageInfos = append(imageInfos, imageInfo)
 
 	}
@@ -234,8 +295,8 @@ func GetPinFromRelatedPin(pinID string, size int) ([]model.ImageInfo, error) {
 	//fmt.Println(uri)
 	req, err := http.NewRequest("GET", uri, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36")
-	req.AddCookie(&http.Cookie{Name: "csrftoken",Value: Csrftoken})
-	req.AddCookie(&http.Cookie{Name: "_pinterest_sess",Value: SessionKey})
+	req.AddCookie(&http.Cookie{Name: "csrftoken", Value: Csrftoken})
+	req.AddCookie(&http.Cookie{Name: "_pinterest_sess", Value: SessionKey})
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -254,41 +315,67 @@ func GetPinFromRelatedPin(pinID string, size int) ([]model.ImageInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Println(len(bodyBytes))
 	resourceResponse := response["resource_response"].(map[string]interface{})
 	data := resourceResponse["data"].([]interface{})
-	//fmt.Println(resourceResponse["http_status"],len(data))
 	imageInfos := make([]model.ImageInfo, 0)
 	for i := 1; i < len(data); i++ {
 		info := data[i].(map[string]interface{})
 		if info["type"].(string) != "pin" {
 			continue
 		}
+		images := info["images"].(map[string]interface{})
 		//images := info["images"]
 		pinner := info["pinner"].(map[string]interface{})
 		imageInfo := model.ImageInfo{}
 		imageInfo.Title = info["title"].(string)
 		imageInfo.SourceId = info["id"].(string)
-		imageInfo.SourceLink = "" + imageInfo.SourceId
-		//createdTime := info["created_at"]
+		imageInfo.SourceLink = "https://www.pinterest.com/pin/" + imageInfo.SourceId
 
+		imageInfo.SourceImageSizeDeTails = make([]model.ImageSize, 0)
+		setUrlImage := make(map[string]bool)
+		for _typeImage, _ := range images {
+			sizeValue := images[_typeImage].(map[string]interface{})
+			if _typeImage == "orig" {
+				imageInfo.Image = sizeValue["url"].(string)
+			}
+			imageSize := model.ImageSize{}
+			imageSize.Url = sizeValue["url"].(string)
+			if setUrlImage[imageSize.Url] {
+				continue
+			}
+			setUrlImage[imageSize.Url] = true
+			imageSize.Width = int(sizeValue["width"].(float64))
+			imageSize.Height = int(sizeValue["height"].(float64))
+			imageInfo.SourceImageSizeDeTails = append(imageInfo.SourceImageSizeDeTails, imageSize)
+		}
+		createdTime := info["created_at"].(string) //Fri, 25 Sep 2020 16:51:58 +0000
+		created, err := time.Parse(time.RFC1123, createdTime)
+		if err != nil {
+			fmt.Println("err when parser time", createdTime)
+			continue
+		}
+		imageInfo.CreatedTime = created.UnixNano()
 		imageInfo.Source = model.Pinterest
 		imageInfo.SourceOwnerName = pinner["full_name"].(string)
-		imageInfo.SourceOwnerLink = pinner["username"].(string)
-		imageInfos=append(imageInfos,imageInfo)
+		imageInfo.SourceOwnerLink = "https://www.pinterest.com/" + pinner["username"].(string)
+		board := info["board"].(map[string]interface{})
+		imageInfo.SourceAlbumName = board["name"].(string)
+		imageInfo.SourceAlbumLink = "https://www.pinterest.com/" + board["url"].(string)
+		imageInfo.Source = model.Pinterest
+		imageInfos = append(imageInfos, imageInfo)
 	}
 	return imageInfos, nil
 }
 
 func GetPinFromNextPageSearch(keyword string) ([]model.ImageInfo, error) {
 
-	bodyPost := []byte("source_url=" +url.QueryEscape("/search/pins/?q="+url.QueryEscape(keyword)))
+	bodyPost := []byte("source_url=" + url.QueryEscape("/search/pins/?q="+url.QueryEscape(keyword)))
 
 	req, err := http.NewRequest("POST", "https://www.pinterest.com/resource/BaseSearchResource/get/", bytes.NewBuffer(bodyPost))
-	req.AddCookie(&http.Cookie{Name: "csrftoken",Value: Csrftoken})
-	req.AddCookie(&http.Cookie{Name: "_pinterest_sess",Value: SessionKey})
+	req.AddCookie(&http.Cookie{Name: "csrftoken", Value: Csrftoken})
+	req.AddCookie(&http.Cookie{Name: "_pinterest_sess", Value: SessionKey})
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36")
-	req.Header.Set("x-csrftoken",Csrftoken)
+	req.Header.Set("x-csrftoken", Csrftoken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -315,18 +402,46 @@ func GetPinFromNextPageSearch(keyword string) ([]model.ImageInfo, error) {
 	imageInfos := make([]model.ImageInfo, 0)
 	for i := 0; i < len(results); i++ {
 		info := results[i].(map[string]interface{})
-		//images:=info["images"]
-		//fmt.Println(i)
+		if info["type"].(string) != "pin" {
+			continue
+		}
+		images := info["images"].(map[string]interface{})
 		pinner := info["pinner"].(map[string]interface{})
 		imageInfo := model.ImageInfo{}
 		imageInfo.Title = info["title"].(string)
 		imageInfo.SourceId = info["id"].(string)
-		imageInfo.SourceLink = "" + imageInfo.SourceId
-		//createdTime := info["created_at"]
-
+		imageInfo.SourceLink = "https://www.pinterest.com/pin/" + imageInfo.SourceId
+		imageInfo.SourceImageSizeDeTails = make([]model.ImageSize, 0)
+		setUrlImage := make(map[string]bool)
+		for _typeImage, _ := range images {
+			sizeValue := images[_typeImage].(map[string]interface{})
+			if _typeImage == "orig" {
+				imageInfo.Image = sizeValue["url"].(string)
+			}
+			imageSize := model.ImageSize{}
+			imageSize.Url = sizeValue["url"].(string)
+			if setUrlImage[imageSize.Url] {
+				continue
+			}
+			setUrlImage[imageSize.Url] = true
+			imageSize.Width = int(sizeValue["width"].(float64))
+			imageSize.Height = int(sizeValue["height"].(float64))
+			imageInfo.SourceImageSizeDeTails = append(imageInfo.SourceImageSizeDeTails, imageSize)
+		}
+		createdTime := info["created_at"].(string) //Fri, 25 Sep 2020 16:51:58 +0000
+		created, err := time.Parse(time.RFC1123, createdTime)
+		if err != nil {
+			fmt.Println("err when parser time", createdTime)
+			continue
+		}
+		imageInfo.CreatedTime = created.UnixNano()
 		imageInfo.Source = model.Pinterest
 		imageInfo.SourceOwnerName = pinner["full_name"].(string)
-		imageInfo.SourceOwnerLink = pinner["username"].(string)
+		imageInfo.SourceOwnerLink = "https://www.pinterest.com/" + pinner["username"].(string)
+		board := info["board"].(map[string]interface{})
+		imageInfo.SourceAlbumName = board["name"].(string)
+		imageInfo.SourceAlbumLink = "https://www.pinterest.com/" + board["url"].(string)
+		imageInfo.Source = model.Pinterest
 		imageInfos = append(imageInfos, imageInfo)
 	}
 	return imageInfos, nil
@@ -354,8 +469,6 @@ func GetPinInfo(pinID string) error {
 	initialReduxState := props["initialReduxState"].(map[string]interface{})
 	pins := initialReduxState["pins"].(map[string]interface{})
 	info := pins[pinID].(map[string]interface{})
-	//fmt.Println(info["images"])
-	//["initialReduxState"]["pins"]
 
 	title := info["title"]
 	createdTime := info["created_at"]

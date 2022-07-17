@@ -26,11 +26,13 @@ type ImageInfo struct {
 	SourceLink             string
 	SourceOwnerName        string
 	SourceOwnerLink        string
+	SourceAlbumName        string
+	SourceAlbumLink        string
 	SourceImageSizeDeTails []ImageSize
 	SourceKeyWord          string
 	Categorys              []string
-	CreatedTime            uint64
-	CrawledTime            uint64
+	CreatedTime            int64
+	CrawledTime            int64
 }
 
 type ImageSize struct {

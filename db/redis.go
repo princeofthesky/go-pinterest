@@ -24,7 +24,7 @@ func Init() {
 func Close() {
 	Rbd.Close()
 }
-func GetDataId() (int64, error) {
+func GetDataId() (uint64, error) {
 	val, err := Rbd.Get(context.Background(), ImageCountKey).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -32,12 +32,24 @@ func GetDataId() (int64, error) {
 		}
 		return 0, err
 	}
-	total, err := strconv.ParseInt(val, 10, 64)
+	total, err := strconv.ParseUint(val, 10, 64)
 
 	if err != nil {
 		return 0, err
 	}
 	return total, nil
+}
+
+func SetDataId(dataId uint64) error {
+	_, err := Rbd.SetXX(context.Background(), ImageCountKey, strconv.FormatUint(dataId, 10), redis.KeepTTL).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 func InitDataId() (bool, error) {
@@ -75,20 +87,19 @@ func GetConfigCrawler() (map[string]string, error) {
 }
 
 func GetImageId(sourceLink string) (int64, error) {
-	val, err := Rbd.HGet(context.Background(),ImageMapIdHash,sourceLink).Result()
+	val, err := Rbd.HGet(context.Background(), ImageMapIdHash, sourceLink).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return -1, nil
 		}
 		return -1, err
 	}
-	id,err:=strconv.ParseInt(val,10,64)
-	if err !=nil{
-		return -1,err
+	id, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return -1, err
 	}
 	return id, nil
 }
-
 
 func GetImageInfo(Id int64) (*model.ImageInfo, error) {
 	//val, err := Rbd.HGetAll(context.Background(), ImageInfoHash(Id)).Result()
@@ -163,7 +174,7 @@ func SetImageInfo(info model.ImageInfo) (bool, error) {
 
 func AddImageToCategory(info model.ImageInfo, category string) (int64, error) {
 	timestamp := time.Now().UnixNano()
-	scoreText := strconv.FormatUint(info.CreatedTime, 10) + "." + strconv.FormatInt(timestamp, 10)
+	scoreText := strconv.FormatInt(info.CreatedTime, 10) + "." + strconv.FormatInt(timestamp, 10)
 	score, err := strconv.ParseFloat(scoreText, 64)
 	if err != nil {
 		return 0, err
