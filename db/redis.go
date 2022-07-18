@@ -2,10 +2,10 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/go-redis/redis/v8"
 	"go-pinterest/model"
 	"strconv"
-	"time"
 )
 
 var (
@@ -24,7 +24,7 @@ func Init() {
 func Close() {
 	Rbd.Close()
 }
-func GetDataId() (uint64, error) {
+func GetMaxImageId() (int64, error) {
 	val, err := Rbd.Get(context.Background(), ImageCountKey).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -32,7 +32,7 @@ func GetDataId() (uint64, error) {
 		}
 		return 0, err
 	}
-	total, err := strconv.ParseUint(val, 10, 64)
+	total, err := strconv.ParseInt(val, 10, 64)
 
 	if err != nil {
 		return 0, err
@@ -40,15 +40,14 @@ func GetDataId() (uint64, error) {
 	return total, nil
 }
 
-func SetDataId(dataId uint64) error {
-	_, err := Rbd.SetXX(context.Background(), ImageCountKey, strconv.FormatUint(dataId, 10), redis.KeepTTL).Result()
+func SetMaxImageId(dataId int64) error {
+	_, err := Rbd.SetXX(context.Background(), ImageCountKey, strconv.FormatInt(dataId, 10), 0).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil
 		}
 		return err
 	}
-
 	return nil
 }
 
@@ -102,88 +101,133 @@ func GetImageId(sourceLink string) (int64, error) {
 }
 
 func GetImageInfo(Id int64) (*model.ImageInfo, error) {
-	//val, err := Rbd.HGetAll(context.Background(), ImageInfoHash(Id)).Result()
-	//if err != nil {
-	//	if err == redis.Nil {
-	//		return nil, nil
-	//	}
-	//	return nil, err
-	//}
+	val, err := Rbd.HGetAll(context.Background(), ImageInfoHash(Id)).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
 	info := &model.ImageInfo{}
-	//info.Owner = common.HexToAddress(val["Owner"])
-	//info.Image = val["Image"]
-	//info.TokenId, err = strconv.ParseInt(val["TokenId"], 10, 64)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//info.DataId, err = strconv.ParseInt(val["DataId"], 10, 64)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//info.MinedBlock, err = strconv.ParseInt(val["MinedBlock"], 10, 64)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//info.SellStatus = false
-	//if status, exit := val["SellStatus"]; exit {
-	//	info.SellStatus, err = strconv.ParseBool(status)
-	//	if err != nil {
-	//		return nil, errors.New(fmt.Sprintf("Can not parse sell status with dataId :%d  , %s", dataId, status))
-	//	}
-	//}
-	//
-	//check := false
-	//if price, exit := val["Price"]; exit {
-	//	info.Price, check = new(big.Int).SetString(price, 10)
-	//	if !check {
-	//		return nil, errors.New(fmt.Sprintf("Can not parse price with dataId :%d  , %s", dataId, price))
-	//	}
-	//}
-	//info.PriceType = val["PriceType"]
+	info.Title = val["Title"]
+	info.Image = val["Image"]
+	info.SourceId = val["SourceId"]
+	info.Link = val["Link"]
+	info.OwnerName = val["OwnerName"]
+	info.OwnerUrl = val["OwnerUrl"]
+	info.BoardName = val["BoardName"]
+	info.BoardUrl = val["BoardUrl"]
+	info.Images = make([]model.ImageSize, 0)
+	json.Unmarshal([]byte(val["Images"]), &info.Images)
+	info.CreatedTime, _ = strconv.ParseInt(val["CreatedTime"], 10, 64)
+	info.CrawledTime, _ = strconv.ParseInt(val["CrawledTime"], 10, 64)
 	return info, nil
 }
 
 func SetImageInfo(info model.ImageInfo) (bool, error) {
-	//values := make([]interface{}, 16)
-	//values[0] = "Owner"
-	//values[1] = info.Owner.Hex()
-	//values[2] = "Image"
-	//values[3] = info.Image
-	//values[4] = "TokenId"
-	//values[5] = strconv.FormatInt(info.TokenId, 10)
-	//values[6] = "DataId"
-	//values[7] = strconv.FormatInt(info.DataId, 10)
-	//values[8] = "MinedBlock"
-	//values[9] = strconv.FormatInt(info.MinedBlock, 10)
-	//values[10] = "SellStatus"
-	//values[11] = strconv.FormatBool(info.SellStatus)
-	//values[12] = "Price"
-	//values[13] = info.Price.String()
-	//values[14] = "PriceType"
-	//values[15] = info.PriceType
-	//check, err := Rbd.HMSet(context.Background(), ImageInfoHash(info.DataId), values...).Result()
-	//if err != nil {
-	//	return check, err
-	//}
-	//_, err = Rbd.ZAdd(context.Background(), NFTByAddressZset(info.Owner), &redis.Z{Member: info.DataId, Score: float64(time.Now().UnixNano())}).Result()
-	//if err != nil {
-	//	return false, err
-	//}
+	values := make([]interface{}, 22)
+	values[0] = "Title"
+	values[1] = info.Title
+	values[2] = "Image"
+	values[3] = info.Image
+	values[4] = "SourceId"
+	values[5] = info.SourceId
+	values[6] = "Link"
+	values[7] = info.Link
+	values[8] = "OwnerName"
+	values[9] = info.OwnerName
+	values[10] = "OwnerUrl"
+	values[11] = info.OwnerUrl
+	values[12] = "BoardName"
+	values[13] = info.BoardName
+	values[14] = "BoardUrl"
+	values[15] = info.BoardUrl
+	values[16] = "Images"
+	sizeDetails, _ := json.Marshal(info.Images)
+	values[17] = string(sizeDetails)
+	values[18] = "CreatedTime"
+	values[19] = strconv.FormatInt(info.CreatedTime, 10)
+	values[20] = "CrawledTime"
+	values[21] = strconv.FormatInt(info.CrawledTime, 10)
+	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(info.Id), values...).Result()
+	if err != nil {
+		return check, err
+	}
+	_, err = Rbd.SAdd(context.Background(), AllImageSet(), strconv.FormatInt(info.Id, 10)).Result()
+	if err != nil {
+		return false, err
+	}
+	_, err = Rbd.HSet(context.Background(), ImageMapIdHash, info.Link, strconv.FormatInt(info.Id, 10)).Result()
+	if err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
 func AddImageToCategory(info model.ImageInfo, category string) (int64, error) {
-	timestamp := time.Now().UnixNano()
-	scoreText := strconv.FormatInt(info.CreatedTime, 10) + "." + strconv.FormatInt(timestamp, 10)
-	score, err := strconv.ParseFloat(scoreText, 64)
+	member := strconv.FormatInt(info.Id, 10)
+	score, err := Rbd.ZScore(context.Background(), NFTByCategoryZset(category), member).Result()
 	if err != nil {
-		return 0, err
+		if err != redis.Nil {
+			return 0, err
+		}
 	}
-	return Rbd.ZAdd(context.Background(), NFTByCategoryZset(category), &redis.Z{Member: info.Id, Score: score}).Result()
+	if score > 0 {
+		return 0, nil
+	}
+	return Rbd.ZAdd(context.Background(), NFTByCategoryZset(category), &redis.Z{Member: member, Score: float64(info.CrawledTime)}).Result()
+}
+
+func GetImageByCategory(category string, offset int64, length int64) (model.ListImageInfo, error) {
+	images := make([]model.ImageInfo, 0)
+	listImages := model.ListImageInfo{
+		images, -1,
+	}
+	imageIds, err := Rbd.ZRevRangeByScoreWithScores(context.Background(), NFTByCategoryZset(category), &redis.ZRangeBy{Max: strconv.FormatInt(offset, 10), Min: "0", Offset: 0, Count: length}).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return listImages, nil
+		}
+		return listImages, err
+	}
+	for i := 0; i < len(imageIds); i++ {
+		id, _ := strconv.ParseInt(imageIds[i].Member.(string), 10, 64)
+		imageInfo, _ := GetImageInfo(id)
+		listImages.Images = append(listImages.Images, *imageInfo)
+		listImages.NextOffset = int64(imageIds[i].Score - 1)
+	}
+	if int64(len(imageIds)) < length {
+		listImages.NextOffset = -1
+	}
+	return listImages, nil
+}
+
+func GetHomeImages(offset int64, length int64) (model.ListImageInfo, error) {
+	images := make([]model.ImageInfo, 0)
+	listImages := model.ListImageInfo{
+		images, -1,
+	}
+	imageIds, err := Rbd.ZRevRangeByScoreWithScores(context.Background(), HomeImagesZset(), &redis.ZRangeBy{Max: strconv.FormatInt(offset, 10), Min: "0", Offset: 0, Count: length}).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return listImages, nil
+		}
+		return listImages, err
+	}
+	for i := 0; i < len(imageIds); i++ {
+		id, _ := strconv.ParseInt(imageIds[i].Member.(string), 10, 64)
+		imageInfo, _ := GetImageInfo(id)
+		listImages.Images = append(listImages.Images, *imageInfo)
+		listImages.NextOffset = int64(imageIds[i].Score - 1)
+	}
+	if int64(len(imageIds)) < length {
+		listImages.NextOffset = -1
+	}
+	return listImages, nil
 }
 
 func GetAllCategory() ([]string, error) {
-	val, err := Rbd.ZRange(context.Background(), CategoryListZset(), 0, -1).Result()
+	val, err := Rbd.SMembers(context.Background(), CategorySet()).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return []string{}, nil
@@ -191,4 +235,12 @@ func GetAllCategory() ([]string, error) {
 		return []string{}, err
 	}
 	return val, nil
+}
+
+func AddACategory(category string) error {
+	_, err := Rbd.SAdd(context.Background(), CategorySet(), category).Result()
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -15,7 +15,7 @@ var ImageMapIdHash = "image_check"
 
 func ImageInfoHash(i int64) string {
 	var b bytes.Buffer
-	b.WriteString("img_")
+	b.WriteString("i_")
 	b.WriteString(strconv.FormatInt(i, 10))
 	return b.String()
 }
@@ -27,14 +27,20 @@ func NFTByCategoryZset(category string) string {
 	return b.String()
 }
 
-func CategoryListZset() string {
+func CategorySet() string {
 	var b bytes.Buffer
 	b.WriteString("c")
 	return b.String()
 }
 
+func HomeImagesZset() string {
+	var b bytes.Buffer
+	b.WriteString("home")
+	return b.String()
+}
+
 func AllImageSet() string {
 	var b bytes.Buffer
-	b.WriteString("nft_sell")
+	b.WriteString("all_image")
 	return b.String()
 }

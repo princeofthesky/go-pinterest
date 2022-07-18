@@ -2,46 +2,28 @@ package model
 
 type Source string
 
-const (
-	Pinterest Source = Source(iota)
-	Reddit
-)
-
-func (s Source) String() string {
-	switch s {
-	case Pinterest:
-		return "Pinterest"
-	case Reddit:
-		return "Reddit"
-	}
-	return "unknown"
-}
-
 type ImageInfo struct {
-	Image                  string
-	Id                     uint64
-	Title                  string
-	Source                 Source
-	SourceId               string
-	SourceLink             string
-	SourceOwnerName        string
-	SourceOwnerLink        string
-	SourceAlbumName        string
-	SourceAlbumLink        string
-	SourceImageSizeDeTails []ImageSize
-	SourceKeyWord          string
-	Categorys              []string
-	CreatedTime            int64
-	CrawledTime            int64
+	Image       string      `json:"image"`
+	Id          int64       `json:"id"`
+	Title       string      `json:"title"`
+	SourceId    string      `json:"-"`
+	Link        string      `json:"link"`
+	OwnerName   string      `json:"owner_name"`
+	OwnerUrl    string      `json:"owner_url"`
+	BoardName   string      `json:"board_name"`
+	BoardUrl    string      `json:"board_url"`
+	Images      []ImageSize `json:"images"`
+	KeyWords    []string    `json:"keywords"`
+	CreatedTime int64       `json:"created_time"`
+	CrawledTime int64       `json:"crawled_time"`
 }
 
-type ImageSize struct {
-	Width  int
-	Height int
-	Url    string
+type ListImageInfo struct {
+	Images     []ImageInfo `json:"images"`
+	NextOffset int64       `json:"next_offset"`
 }
-type ImageResponse struct {
-	Avatar string `json:"ava"`
-	Id     int64  `json:"id"`
-	Title  string `json:"title"`
+type ImageSize struct {
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Url    string `json:"url"`
 }
