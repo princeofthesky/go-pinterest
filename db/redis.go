@@ -121,11 +121,14 @@ func GetImageInfo(Id int64) (*model.ImageInfo, error) {
 	json.Unmarshal([]byte(val["Images"]), &info.Images)
 	info.CreatedTime, _ = strconv.ParseInt(val["CreatedTime"], 10, 64)
 	info.CrawledTime, _ = strconv.ParseInt(val["CrawledTime"], 10, 64)
+	info.Description = val["Description"]
+	json.Unmarshal([]byte(val["KeyWords"]), &info.KeyWords)
+	json.Unmarshal([]byte(val["Annotations"]), &info.Annotations)
 	return info, nil
 }
 
 func SetImageInfo(info model.ImageInfo) (bool, error) {
-	values := make([]interface{}, 22)
+	values := make([]interface{}, 26)
 	values[0] = "Title"
 	values[1] = info.Title
 	values[2] = "Image"
@@ -149,6 +152,12 @@ func SetImageInfo(info model.ImageInfo) (bool, error) {
 	values[19] = strconv.FormatInt(info.CreatedTime, 10)
 	values[20] = "CrawledTime"
 	values[21] = strconv.FormatInt(info.CrawledTime, 10)
+	values[22] = "Description"
+	values[23] = info.Description
+	values[24] = "KeyWords"
+	keyWords, _ := json.Marshal(info.KeyWords)
+	values[25] = string(keyWords)
+
 	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(info.Id), values...).Result()
 	if err != nil {
 		return check, err
@@ -164,9 +173,62 @@ func SetImageInfo(info model.ImageInfo) (bool, error) {
 	return true, nil
 }
 
+func UpdateImageInfo(imageId int64, title string, description string, ownerName, ownerUrl string, visualAnnotations []string) (bool, error) {
+	values := make([]interface{}, 10)
+	values[0] = "Title"
+	values[1] = title
+	values[2] = "Description"
+	values[3] = description
+	values[4] = "OwnerName"
+	values[5] = ownerName
+	values[6] = "OwnerUrl"
+	values[7] = ownerUrl
+	values[8] = "Annotations"
+	annotations, _ := json.Marshal(visualAnnotations)
+	values[9] = string(annotations)
+	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(imageId), values...).Result()
+	if err != nil {
+		return check, err
+	}
+	return true, nil
+}
+
+func UpdateKeywordImageInfo(imageId int64, keywords ...string) error {
+	oldKeywords, err := Rbd.HGet(context.Background(), ImageInfoHash(imageId), "KeyWords").Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil
+		}
+		return err
+	}
+	var exitKeywords []string
+	err = json.Unmarshal([]byte(oldKeywords), exitKeywords)
+	if err != nil {
+		return err
+	}
+	mapOldKeys := make(map[string]bool)
+	for _, value := range exitKeywords {
+		mapOldKeys[value] = true
+	}
+	for _, value := range keywords {
+		if !mapOldKeys[value] {
+			exitKeywords =append(exitKeywords,value)
+			mapOldKeys[value]=true
+		}
+	}
+	values := make([]interface{}, 2)
+	values[0] = "KeyWords"
+	newKeywords, _ := json.Marshal(exitKeywords)
+	values[1] = string(newKeywords)
+	_, err = Rbd.HMSet(context.Background(), ImageInfoHash(imageId), values...).Result()
+	if err != nil {
+		return  err
+	}
+	return  nil
+}
 func AddImageToCategory(info model.ImageInfo, category string) (int64, error) {
 	member := strconv.FormatInt(info.Id, 10)
-	score, err := Rbd.ZScore(context.Background(), NFTByCategoryZset(category), member).Result()
+	score, err := Rbd.ZScore(context.Background(), ImageByCategoryZset(category), member).Result()
 	if err != nil {
 		if err != redis.Nil {
 			return 0, err
@@ -175,7 +237,7 @@ func AddImageToCategory(info model.ImageInfo, category string) (int64, error) {
 	if score > 0 {
 		return 0, nil
 	}
-	return Rbd.ZAdd(context.Background(), NFTByCategoryZset(category), &redis.Z{Member: member, Score: float64(info.CrawledTime)}).Result()
+	return Rbd.ZAdd(context.Background(), ImageByCategoryZset(category), &redis.Z{Member: member, Score: float64(info.CrawledTime)}).Result()
 }
 
 func GetImageByCategory(category string, offset int64, length int64) (model.ListImageInfo, error) {
@@ -183,7 +245,7 @@ func GetImageByCategory(category string, offset int64, length int64) (model.List
 	listImages := model.ListImageInfo{
 		images, -1,
 	}
-	imageIds, err := Rbd.ZRevRangeByScoreWithScores(context.Background(), NFTByCategoryZset(category), &redis.ZRangeBy{Max: strconv.FormatInt(offset, 10), Min: "0", Offset: 0, Count: length}).Result()
+	imageIds, err := Rbd.ZRevRangeByScoreWithScores(context.Background(), ImageByCategoryZset(category), &redis.ZRangeBy{Max: strconv.FormatInt(offset, 10), Min: "0", Offset: 0, Count: length}).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return listImages, nil

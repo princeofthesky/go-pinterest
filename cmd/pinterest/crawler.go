@@ -9,6 +9,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"go-pinterest/db"
 	"go-pinterest/model"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -62,7 +63,6 @@ func main() {
 	db.Init()
 	db.InitDataId()
 	LoadConfigCrawler()
-
 	IdCrawled := make(map[string]bool)
 	IdsSearched := make(map[string]map[string]bool)
 	for keyword, category := range mapKeywordCategory {
@@ -78,25 +78,26 @@ func main() {
 			id := imageInfo.SourceId
 			//fmt.Println("find new image search id =", id)
 			if _, exits := IdsSearched[id]; exits {
-				IdsSearched[id][category] = true
+				IdsSearched[id][keyword] = true
 				continue
 			}
 			IdsSearched[id] = make(map[string]bool)
-			IdsSearched[id][category] = true
+			IdsSearched[id][keyword] = true
 			IdCrawled[id] = true
 			if id, _ := db.GetImageId(imageInfo.Link); id > 0 {
 				imageInfo.Id = id
 				imageInfo.CrawledTime = time.Now().UnixNano()
 				db.AddImageToCategory(imageInfo, category)
+				db.UpdateKeywordImageInfo(imageInfo.Id,keyword)
 				continue
 			}
 			dataId, _ := db.GetMaxImageId()
 			imageInfo.Id = dataId + 1
 			imageInfo.CrawledTime = time.Now().UnixNano()
-			err := db.SetMaxImageId(dataId + 1)
-			if err != nil {
-				fmt.Println("err when update Id image", err)
-			}
+			imageInfo.KeyWords = make([]string, 1)
+			imageInfo.KeyWords[0] = keyword
+
+			db.SetMaxImageId(dataId + 1)
 			db.SetImageInfo(imageInfo)
 			db.AddImageToCategory(imageInfo, category)
 		}
@@ -114,21 +115,25 @@ func main() {
 				id := imageInfo.SourceId
 				//fmt.Println("find new image search next page id =", id)
 				if _, exits := IdsSearched[id]; exits {
-					IdsSearched[id][category] = true
+					IdsSearched[id][keyword] = true
 					continue
 				}
 				IdsSearched[id] = make(map[string]bool)
-				IdsSearched[id][category] = true
+				IdsSearched[id][keyword] = true
 				IdCrawled[id] = true
 				if id, _ := db.GetImageId(imageInfo.Link); id > 0 {
 					imageInfo.Id = id
 					imageInfo.CrawledTime = time.Now().UnixNano()
 					db.AddImageToCategory(imageInfo, category)
+					db.UpdateKeywordImageInfo(imageInfo.Id,keyword)
 					continue
 				}
 				dataId, _ := db.GetMaxImageId()
 				imageInfo.Id = dataId + 1
 				imageInfo.CrawledTime = time.Now().UnixNano()
+				imageInfo.KeyWords = make([]string, 1)
+				imageInfo.KeyWords[0] = keyword
+
 				db.SetMaxImageId(dataId + 1)
 				db.SetImageInfo(imageInfo)
 				db.AddImageToCategory(imageInfo, category)
@@ -137,7 +142,7 @@ func main() {
 		}
 		db.AddACategory(category)
 	}
-	for pinId, categories := range IdsSearched {
+	for pinId, keywords := range IdsSearched {
 		relatedImages, err := GetPinFromRelatedPin(pinId, *maxRelated)
 		if err != nil {
 			fmt.Println(pinId)
@@ -149,6 +154,11 @@ func main() {
 			if id, _ := db.GetImageId(imageInfo.Link); id > 0 {
 				imageInfo.Id = id
 				imageInfo.CrawledTime = time.Now().UnixNano()
+				categories := make(map[string]interface{})
+				for keyword, _ := range keywords {
+					categories[mapKeywordCategory[keyword]] = true
+					db.UpdateKeywordImageInfo(imageInfo.Id,keyword)
+				}
 				for category, _ := range categories {
 					db.AddImageToCategory(imageInfo, category)
 				}
@@ -157,6 +167,13 @@ func main() {
 			dataId, _ := db.GetMaxImageId()
 			imageInfo.Id = dataId + 1
 			imageInfo.CrawledTime = time.Now().UnixNano()
+			imageInfo.KeyWords = make([]string, 0)
+			categories := make(map[string]interface{})
+			for keyword, _ := range keywords {
+				categories[mapKeywordCategory[keyword]] = true
+				imageInfo.KeyWords = append(imageInfo.KeyWords, keyword)
+			}
+
 			db.SetMaxImageId(dataId + 1)
 			db.SetImageInfo(imageInfo)
 			for category, _ := range categories {
@@ -285,7 +302,7 @@ func GetPinFromKeyWordSearch(keyword string) ([]model.ImageInfo, string, error) 
 			imageInfo.Title = info["title"].(string)
 		} else if info["grid_title"] != nil && len(info["grid_title"].(string)) > 0 {
 			imageInfo.Title = info["grid_title"].(string)
-		}else if info["description"] != nil && len(info["description"].(string)) > 0 {
+		} else if info["description"] != nil && len(info["description"].(string)) > 0 {
 			imageInfo.Title = info["description"].(string)
 		}
 		imageInfo.Images = make([]model.ImageSize, 0)
@@ -389,7 +406,7 @@ func GetPinFromRelatedPin(pinID string, size int) ([]model.ImageInfo, error) {
 			imageInfo.Title = info["title"].(string)
 		} else if info["grid_title"] != nil && len(info["grid_title"].(string)) > 0 {
 			imageInfo.Title = info["grid_title"].(string)
-		}else if info["description"] != nil && len(info["description"].(string)) >0 {
+		} else if info["description"] != nil && len(info["description"].(string)) > 0 {
 			imageInfo.Title = info["description"].(string)
 		}
 		imageInfo.SourceId = info["id"].(string)
@@ -486,7 +503,7 @@ func GetPinFromNextPageSearch(keyword string, bookmark string) ([]model.ImageInf
 			imageInfo.Title = info["title"].(string)
 		} else if info["grid_title"] != nil && len(info["grid_title"].(string)) > 0 {
 			imageInfo.Title = info["grid_title"].(string)
-		}else if info["description"] != nil && len(info["description"].(string)) > 0 {
+		} else if info["description"] != nil && len(info["description"].(string)) > 0 {
 			imageInfo.Title = info["description"].(string)
 		}
 		imageInfo.SourceId = info["id"].(string)
@@ -538,7 +555,7 @@ func GetPinFromNextPageSearch(keyword string, bookmark string) ([]model.ImageInf
 	}
 	return imageInfos, nextBookmark, nil
 }
-func GetPinInfo(pinID string) error {
+func UpdatePinInfo(imageId int64, pinID string) error {
 	resp, err := http.Get("https://www.pinterest.com/pin/" + pinID)
 	if err != nil {
 		return err
@@ -552,6 +569,7 @@ func GetPinInfo(pinID string) error {
 		return err
 	}
 	data := doc.Find("#__PWS_DATA__").Text()
+	ioutil.WriteFile("1.txt", []byte(data), fs.ModePerm)
 	response := map[string]interface{}{}
 	err = json.Unmarshal([]byte(data), &response)
 	if err != nil {
@@ -562,16 +580,39 @@ func GetPinInfo(pinID string) error {
 	pins := initialReduxState["pins"].(map[string]interface{})
 	info := pins[pinID].(map[string]interface{})
 
-	title := info["title"]
-	createdTime := info["created_at"]
+	title := info["title"].(string)
+	grid_title := info["grid_title"].(string)
+	if len(title) == 0 && len(grid_title) > 0 {
+		title = grid_title
+	}
+	description := info["description"].(string)
+	if len(title) == 0 {
+		if len(description) > 0 {
+			title = description
+		} else {
+			title = ""
+		}
+	}
+	if len(description) == 0 {
+		if len(info["description_html"].(string)) > 0 {
+			description = info["description_html"].(string)
+		} else {
+			description = ""
+		}
+	}
 
-	pinner := info["pinner"].(map[string]interface{})
-	IDpinner := pinner["id"]
-	IDusername := pinner["username"]
-	fmt.Println(title)
-	fmt.Println(createdTime)
-	fmt.Println(IDpinner)
-	fmt.Println(IDusername)
+	nativeCreator := info["native_creator"].(map[string]interface{})
+	ownerName := nativeCreator["full_name"].(string)
+	ownerUrl := "https://www.pinterest.com/" + nativeCreator["username"].(string)
+
+	pinJoin := info["pin_join"].(map[string]interface{})
+	annotationsWithLinks := pinJoin["annotations_with_links"].(map[string]interface{})
+
+	visualAnnotations := make([]string, 0)
+	for key, _ := range annotationsWithLinks {
+		visualAnnotations = append(visualAnnotations, key)
+	}
+	db.UpdateImageInfo(imageId, title, description, ownerName, ownerUrl, visualAnnotations)
 	return nil
 }
 

@@ -7,8 +7,6 @@ import (
 
 var ImageCountKey = "image_count"
 
-var HomeImageSet = "home"
-
 var ConfigCrawler = "config"
 
 var ImageMapIdHash = "image_check"
@@ -20,7 +18,7 @@ func ImageInfoHash(i int64) string {
 	return b.String()
 }
 
-func NFTByCategoryZset(category string) string {
+func ImageByCategoryZset(category string) string {
 	var b bytes.Buffer
 	b.WriteString("c_")
 	b.WriteString(category)

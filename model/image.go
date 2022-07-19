@@ -6,6 +6,7 @@ type ImageInfo struct {
 	Image       string      `json:"image"`
 	Id          int64       `json:"id"`
 	Title       string      `json:"title"`
+	Description string      `json:"description"`
 	SourceId    string      `json:"-"`
 	Link        string      `json:"link"`
 	OwnerName   string      `json:"owner_name"`
@@ -14,6 +15,7 @@ type ImageInfo struct {
 	BoardUrl    string      `json:"board_url"`
 	Images      []ImageSize `json:"images"`
 	KeyWords    []string    `json:"keywords"`
+	Annotations []string    `json:"annotations"`
 	CreatedTime int64       `json:"created_time"`
 	CrawledTime int64       `json:"crawled_time"`
 }
