@@ -109,6 +109,7 @@ func GetImageInfo(Id int64) (*model.ImageInfo, error) {
 		return nil, err
 	}
 	info := &model.ImageInfo{}
+	info.Id = Id
 	info.Title = val["Title"]
 	info.Image = val["Image"]
 	info.SourceId = val["SourceId"]
@@ -124,6 +125,14 @@ func GetImageInfo(Id int64) (*model.ImageInfo, error) {
 	info.Description = val["Description"]
 	json.Unmarshal([]byte(val["KeyWords"]), &info.KeyWords)
 	json.Unmarshal([]byte(val["Annotations"]), &info.Annotations)
+	json.Unmarshal([]byte(val["Hashtags"]), &info.Hashtags)
+	if info.Annotations==nil {
+		info.Annotations=make([]string,0)
+	}
+	if info.Hashtags==nil {
+		info.Hashtags=make([]string,0)
+	}
+	info.BoardDescription = val["BoardDescription"]
 	return info, nil
 }
 
@@ -173,8 +182,8 @@ func SetImageInfo(info model.ImageInfo) (bool, error) {
 	return true, nil
 }
 
-func UpdateImageInfo(imageId int64, title string, description string, ownerName, ownerUrl string, visualAnnotations []string) (bool, error) {
-	values := make([]interface{}, 10)
+func UpdateImageInfo(imageId int64, title string, description string, ownerName, ownerUrl string, annotations, hashtags []string,boardDescription string) (bool, error) {
+	values := make([]interface{}, 14)
 	values[0] = "Title"
 	values[1] = title
 	values[2] = "Description"
@@ -184,8 +193,13 @@ func UpdateImageInfo(imageId int64, title string, description string, ownerName,
 	values[6] = "OwnerUrl"
 	values[7] = ownerUrl
 	values[8] = "Annotations"
-	annotations, _ := json.Marshal(visualAnnotations)
-	values[9] = string(annotations)
+	annotationsByte, _ := json.Marshal(annotations)
+	values[9] = string(annotationsByte)
+	values[10] = "Hashtags"
+	hashtagsByte, _ := json.Marshal(hashtags)
+	values[11] = string(hashtagsByte)
+	values[12] = "BoardDescription"
+	values[13] = boardDescription
 	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(imageId), values...).Result()
 	if err != nil {
 		return check, err
@@ -212,8 +226,8 @@ func UpdateKeywordImageInfo(imageId int64, keywords ...string) error {
 	}
 	for _, value := range keywords {
 		if !mapOldKeys[value] {
-			exitKeywords =append(exitKeywords,value)
-			mapOldKeys[value]=true
+			exitKeywords = append(exitKeywords, value)
+			mapOldKeys[value] = true
 		}
 	}
 	values := make([]interface{}, 2)
@@ -222,9 +236,9 @@ func UpdateKeywordImageInfo(imageId int64, keywords ...string) error {
 	values[1] = string(newKeywords)
 	_, err = Rbd.HMSet(context.Background(), ImageInfoHash(imageId), values...).Result()
 	if err != nil {
-		return  err
+		return err
 	}
-	return  nil
+	return nil
 }
 func AddImageToCategory(info model.ImageInfo, category string) (int64, error) {
 	member := strconv.FormatInt(info.Id, 10)
@@ -262,6 +276,11 @@ func GetImageByCategory(category string, offset int64, length int64) (model.List
 		listImages.NextOffset = -1
 	}
 	return listImages, nil
+}
+
+func GetAllImageIdByCategory(category string) ([]string, error) {
+	imageIds, _ := Rbd.ZRevRange(context.Background(), ImageByCategoryZset(category), 0, -1).Result()
+	return imageIds, nil
 }
 
 func GetHomeImages(offset int64, length int64) (model.ListImageInfo, error) {

@@ -65,7 +65,7 @@ func GetImagesByCategory(c *gin.Context) {
 	}
 	lengthText, exit := c.GetQuery("length")
 	var length int64 = 20
-	if !exit {
+	if exit {
 		length, err = strconv.ParseInt(lengthText, 10, 64)
 		if err != nil {
 			fmt.Println(c.Request.RequestURI)
@@ -73,7 +73,9 @@ func GetImagesByCategory(c *gin.Context) {
 			return
 		}
 	}
-
+	if length > 20{
+		length=20
+	}
 	data, err := db.GetImageByCategory(category, offset, length)
 	if err != nil {
 		fmt.Println(c.Request.RequestURI)
@@ -102,13 +104,16 @@ func GetHomeRandomImage(c *gin.Context) {
 	}
 	lengthText, exit := c.GetQuery("length")
 	var length int64 = 20
-	if !exit {
+	if exit {
 		length, err = strconv.ParseInt(lengthText, 10, 64)
 		if err != nil {
 			fmt.Println(c.Request.RequestURI)
 			c.JSON(http.StatusOK, model.Reponse{Code: model.HTTP_CLIENT_ERROR, Message: "Error when length query"})
 			return
 		}
+	}
+	if length > 20{
+		length=20
 	}
 	data, err := db.GetHomeImages(offset, length)
 	if err != nil {
