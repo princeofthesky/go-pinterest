@@ -110,62 +110,64 @@ func GetImageInfo(Id int64) (*model.ImageInfo, error) {
 	}
 	info := &model.ImageInfo{}
 	info.Id = Id
-	info.Title = val["Title"]
-	info.Image = val["Image"]
-	info.SourceId = val["SourceId"]
-	info.Link = val["Link"]
-	info.OwnerName = val["OwnerName"]
-	info.OwnerUrl = val["OwnerUrl"]
-	info.BoardName = val["BoardName"]
-	info.BoardUrl = val["BoardUrl"]
+	info.Title = val[TitleField.String()]
+	info.Image = val[ImageField.String()]
+	info.SourceId = val[SourceIdField.String()]
+	info.Link = val[LinkField.String()]
+	info.OwnerName = val[OwnerNameField.String()]
+	info.OwnerUrl = val[OwnerUrlField.String()]
+	info.BoardName = val[BoardNameField.String()]
+	info.BoardUrl = val[BoardUrlField.String()]
 	info.Images = make([]model.ImageSize, 0)
-	json.Unmarshal([]byte(val["Images"]), &info.Images)
-	info.CreatedTime, _ = strconv.ParseInt(val["CreatedTime"], 10, 64)
-	info.CrawledTime, _ = strconv.ParseInt(val["CrawledTime"], 10, 64)
-	info.Description = val["Description"]
-	json.Unmarshal([]byte(val["KeyWords"]), &info.KeyWords)
-	json.Unmarshal([]byte(val["Annotations"]), &info.Annotations)
-	json.Unmarshal([]byte(val["Hashtags"]), &info.Hashtags)
-	if info.Annotations==nil {
-		info.Annotations=make([]string,0)
+	json.Unmarshal([]byte(val[ImagesField.String()]), &info.Images)
+	info.CreatedTime, _ = strconv.ParseInt(val[CreatedTimeField.String()], 10, 64)
+	info.CrawledTime, _ = strconv.ParseInt(val[CrawledTimeField.String()], 10, 64)
+	info.Description = val[DescriptionField.String()]
+	json.Unmarshal([]byte(val[KeyWordsField.String()]), &info.KeyWords)
+	json.Unmarshal([]byte(val[AnnotationsField.String()]), &info.Annotations)
+	json.Unmarshal([]byte(val[HashtagsField.String()]), &info.Hashtags)
+	if info.Annotations == nil {
+		info.Annotations = make([]string, 0)
 	}
-	if info.Hashtags==nil {
-		info.Hashtags=make([]string,0)
+	if info.Hashtags == nil {
+		info.Hashtags = make([]string, 0)
 	}
-	info.BoardDescription = val["BoardDescription"]
+	info.BoardDescription = val[BoardDescriptionField.String()]
 	return info, nil
 }
 
 func SetImageInfo(info model.ImageInfo) (bool, error) {
-	values := make([]interface{}, 26)
-	values[0] = "Title"
+	values := make([]interface{}, 28)
+	values[0] = TitleField.String()
 	values[1] = info.Title
-	values[2] = "Image"
+	values[2] = ImageField.String()
 	values[3] = info.Image
-	values[4] = "SourceId"
+	values[4] = SourceIdField.String()
 	values[5] = info.SourceId
-	values[6] = "Link"
+	values[6] = LinkField.String()
 	values[7] = info.Link
-	values[8] = "OwnerName"
+	values[8] = OwnerNameField.String()
 	values[9] = info.OwnerName
-	values[10] = "OwnerUrl"
+	values[10] = OwnerUrlField.String()
 	values[11] = info.OwnerUrl
-	values[12] = "BoardName"
+	values[12] = BoardNameField.String()
 	values[13] = info.BoardName
-	values[14] = "BoardUrl"
+	values[14] = BoardUrlField.String()
 	values[15] = info.BoardUrl
-	values[16] = "Images"
+	values[16] = ImagesField.String()
 	sizeDetails, _ := json.Marshal(info.Images)
 	values[17] = string(sizeDetails)
-	values[18] = "CreatedTime"
+	values[18] = CreatedTimeField.String()
 	values[19] = strconv.FormatInt(info.CreatedTime, 10)
-	values[20] = "CrawledTime"
+	values[20] = CrawledTimeField.String()
 	values[21] = strconv.FormatInt(info.CrawledTime, 10)
-	values[22] = "Description"
+	values[22] = DescriptionField.String()
 	values[23] = info.Description
-	values[24] = "KeyWords"
+	values[24] = KeyWordsField.String()
 	keyWords, _ := json.Marshal(info.KeyWords)
 	values[25] = string(keyWords)
+	values[26] = CategoryField.String()
+	values[27] = info.Category
 
 	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(info.Id), values...).Result()
 	if err != nil {
@@ -182,23 +184,23 @@ func SetImageInfo(info model.ImageInfo) (bool, error) {
 	return true, nil
 }
 
-func UpdateImageInfo(imageId int64, title string, description string, ownerName, ownerUrl string, annotations, hashtags []string,boardDescription string) (bool, error) {
+func UpdateImageInfo(imageId int64, title string, description string, ownerName, ownerUrl string, annotations, hashtags []string, boardDescription string) (bool, error) {
 	values := make([]interface{}, 14)
-	values[0] = "Title"
+	values[0] = TitleField.String()
 	values[1] = title
-	values[2] = "Description"
+	values[2] = DescriptionField.String()
 	values[3] = description
-	values[4] = "OwnerName"
+	values[4] = OwnerNameField.String()
 	values[5] = ownerName
-	values[6] = "OwnerUrl"
+	values[6] = OwnerUrlField.String()
 	values[7] = ownerUrl
-	values[8] = "Annotations"
+	values[8] = AnnotationsField.String()
 	annotationsByte, _ := json.Marshal(annotations)
 	values[9] = string(annotationsByte)
-	values[10] = "Hashtags"
+	values[10] = HashtagsField.String()
 	hashtagsByte, _ := json.Marshal(hashtags)
 	values[11] = string(hashtagsByte)
-	values[12] = "BoardDescription"
+	values[12] = BoardDescriptionField.String()
 	values[13] = boardDescription
 	check, err := Rbd.HMSet(context.Background(), ImageInfoHash(imageId), values...).Result()
 	if err != nil {
@@ -207,8 +209,19 @@ func UpdateImageInfo(imageId int64, title string, description string, ownerName,
 	return true, nil
 }
 
+func UpdateCategoryImageInfo(imageId int64, category string) error {
+	_, err := Rbd.HSet(context.Background(), ImageInfoHash(imageId), CategoryField.String(), category).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func UpdateKeywordImageInfo(imageId int64, keywords ...string) error {
-	oldKeywords, err := Rbd.HGet(context.Background(), ImageInfoHash(imageId), "KeyWords").Result()
+	oldKeywords, err := Rbd.HGet(context.Background(), ImageInfoHash(imageId), KeyWordsField.String()).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil
@@ -216,7 +229,7 @@ func UpdateKeywordImageInfo(imageId int64, keywords ...string) error {
 		return err
 	}
 	var exitKeywords []string
-	err = json.Unmarshal([]byte(oldKeywords), exitKeywords)
+	err = json.Unmarshal([]byte(oldKeywords), &exitKeywords)
 	if err != nil {
 		return err
 	}
@@ -224,14 +237,19 @@ func UpdateKeywordImageInfo(imageId int64, keywords ...string) error {
 	for _, value := range exitKeywords {
 		mapOldKeys[value] = true
 	}
+	needUpdate := false
 	for _, value := range keywords {
 		if !mapOldKeys[value] {
 			exitKeywords = append(exitKeywords, value)
 			mapOldKeys[value] = true
+			needUpdate = true
 		}
 	}
+	if !needUpdate {
+		return nil
+	}
 	values := make([]interface{}, 2)
-	values[0] = "KeyWords"
+	values[0] = KeyWordsField.String()
 	newKeywords, _ := json.Marshal(exitKeywords)
 	values[1] = string(newKeywords)
 	_, err = Rbd.HMSet(context.Background(), ImageInfoHash(imageId), values...).Result()
@@ -254,6 +272,20 @@ func AddImageToCategory(info model.ImageInfo, category string) (int64, error) {
 	return Rbd.ZAdd(context.Background(), ImageByCategoryZset(category), &redis.Z{Member: member, Score: float64(info.CrawledTime)}).Result()
 }
 
+func AddImageToCategoryAndDepth(info model.ImageInfo, category, keyword string, depth int) (int64, error) {
+	member := strconv.FormatInt(info.Id, 10)
+	score, err := Rbd.ZScore(context.Background(), ImageByCategoryAndDepthZset(category, keyword, depth), member).Result()
+	if err != nil {
+		if err != redis.Nil {
+			return 0, err
+		}
+	}
+	if score > 0 {
+		return 0, nil
+	}
+	return Rbd.ZAdd(context.Background(), ImageByCategoryAndDepthZset(category, keyword, depth), &redis.Z{Member: member, Score: float64(info.CrawledTime)}).Result()
+}
+
 func GetImageByCategory(category string, offset int64, length int64) (model.ListImageInfo, error) {
 	images := make([]model.ImageInfo, 0)
 	listImages := model.ListImageInfo{
@@ -269,6 +301,7 @@ func GetImageByCategory(category string, offset int64, length int64) (model.List
 	for i := 0; i < len(imageIds); i++ {
 		id, _ := strconv.ParseInt(imageIds[i].Member.(string), 10, 64)
 		imageInfo, _ := GetImageInfo(id)
+		imageInfo.Category = category
 		listImages.Images = append(listImages.Images, *imageInfo)
 		listImages.NextOffset = int64(imageIds[i].Score - 1)
 	}
@@ -320,6 +353,13 @@ func GetAllCategory() ([]string, error) {
 
 func AddACategory(category string) error {
 	_, err := Rbd.SAdd(context.Background(), CategorySet(), category).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func AddAKeywordToCategory(category, keyword string) error {
+	_, err := Rbd.SAdd(context.Background(), AllKeywordInCategorySet(category), keyword).Result()
 	if err != nil {
 		return err
 	}

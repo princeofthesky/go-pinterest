@@ -85,7 +85,6 @@ func GetImagesByCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, model.Reponse{Code: model.HTTP_SUCCESS, Data: data})
 }
 
-
 func GetHomeRandomImage(c *gin.Context) {
 	offsetText, exit := c.GetQuery("offset")
 	defaultOffset:= time.Now().UnixNano()

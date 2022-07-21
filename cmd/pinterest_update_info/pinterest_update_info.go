@@ -69,12 +69,23 @@ func UpdatePinInfo(imageId int64, pinID string) error {
 	}
 
 	info := pins[pinID].(map[string]interface{})
-	title := info["title"].(string)
-	grid_title := info["grid_title"].(string)
-	if len(title) == 0 && len(grid_title) > 0 {
-		title = grid_title
+	title := ""
+	if info["title"]!=nil {
+		title=info["title"].(string)
 	}
-	description := info["description"].(string)
+	if len(title) == 0 {
+		if info["grid_title"]!=nil{
+			grid_title := info["grid_title"].(string)
+			if	len(grid_title) > 0 {
+				title = grid_title
+			}
+		}
+
+	}
+	description := ""
+	if info["description"]!=nil {
+		description=info["description"].(string)
+	}
 	closeupUnifiedDescription := info["closeup_unified_description"].(string)
 	if len(title) == 0 {
 		if len(description) > 0 {
@@ -120,7 +131,9 @@ func UpdatePinInfo(imageId int64, pinID string) error {
 	boardDescription := ""
 	for _, v := range boards {
 		board := v.(map[string]interface{})
-		boardDescription = board["description"].(string)
+		if board["description"] != nil {
+			boardDescription = board["description"].(string)
+		}
 		break
 	}
 	db.UpdateImageInfo(imageId, title, description, ownerName, ownerUrl, annotations, hashtags, boardDescription)

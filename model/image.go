@@ -20,6 +20,7 @@ type ImageInfo struct {
 	Hashtags         []string    `json:"hashtags"`
 	CreatedTime      int64       `json:"created_time"`
 	CrawledTime      int64       `json:"crawled_time"`
+	Category         string      `json:"category"`
 }
 
 type ListImageInfo struct {

@@ -64,6 +64,7 @@ func main() {
 	IdCrawled := make(map[string]bool)
 	IdsSearched := make(map[string]map[string]bool)
 	for keyword, category := range mapKeywordCategory {
+		depth:=1
 		imageSearchinfos, bookmark, _ := GetPinFromKeyWordSearch(keyword)
 		fmt.Println(keyword, "search  ", len(imageSearchinfos))
 		if err != nil {
@@ -87,6 +88,8 @@ func main() {
 				imageInfo.CrawledTime = time.Now().UnixNano()
 				db.AddImageToCategory(imageInfo, category)
 				db.UpdateKeywordImageInfo(imageInfo.Id, keyword)
+				db.UpdateCategoryImageInfo(imageInfo.Id,category)
+				db.AddImageToCategoryAndDepth(imageInfo,category,keyword,depth)
 				continue
 			}
 			dataId, _ := db.GetMaxImageId()
@@ -94,12 +97,13 @@ func main() {
 			imageInfo.CrawledTime = time.Now().UnixNano()
 			imageInfo.KeyWords = make([]string, 1)
 			imageInfo.KeyWords[0] = keyword
+			imageInfo.Category=mapKeywordCategory[keyword]
 
 			db.SetMaxImageId(dataId + 1)
 			db.SetImageInfo(imageInfo)
 			db.AddImageToCategory(imageInfo, category)
+			db.AddImageToCategoryAndDepth(imageInfo,category,keyword,depth)
 		}
-
 		for j := 0; j < *maxPageSearch-1; j++ {
 			imageNextSearchInfos, nextBookmark, err := GetPinFromNextPageSearch(keyword, bookmark)
 			bookmark = nextBookmark
@@ -124,6 +128,8 @@ func main() {
 					imageInfo.CrawledTime = time.Now().UnixNano()
 					db.AddImageToCategory(imageInfo, category)
 					db.UpdateKeywordImageInfo(imageInfo.Id, keyword)
+					db.UpdateCategoryImageInfo(imageInfo.Id,category)
+					db.AddImageToCategoryAndDepth(imageInfo,category,keyword,depth)
 					continue
 				}
 				dataId, _ := db.GetMaxImageId()
@@ -131,16 +137,20 @@ func main() {
 				imageInfo.CrawledTime = time.Now().UnixNano()
 				imageInfo.KeyWords = make([]string, 1)
 				imageInfo.KeyWords[0] = keyword
+				imageInfo.Category=mapKeywordCategory[keyword]
 
 				db.SetMaxImageId(dataId + 1)
 				db.SetImageInfo(imageInfo)
 				db.AddImageToCategory(imageInfo, category)
+				db.AddImageToCategoryAndDepth(imageInfo,category,keyword,depth)
 			}
 			fmt.Println("new", len(IdCrawled))
 		}
 		db.AddACategory(category)
+		db.AddAKeywordToCategory(category,keyword)
 	}
 	for pinId, keywords := range IdsSearched {
+		depth:=2
 		relatedImages, err := GetPinFromRelatedPin(pinId, *maxRelated)
 		if err != nil {
 			fmt.Println(pinId)
@@ -154,8 +164,10 @@ func main() {
 				imageInfo.CrawledTime = time.Now().UnixNano()
 				categories := make(map[string]interface{})
 				for keyword, _ := range keywords {
-					categories[mapKeywordCategory[keyword]] = true
+					category:=mapKeywordCategory[keyword]
+					categories[category] = true
 					db.UpdateKeywordImageInfo(imageInfo.Id, keyword)
+					db.AddImageToCategoryAndDepth(imageInfo,category,keyword,depth)
 				}
 				for category, _ := range categories {
 					db.AddImageToCategory(imageInfo, category)
@@ -168,12 +180,17 @@ func main() {
 			imageInfo.KeyWords = make([]string, 0)
 			categories := make(map[string]interface{})
 			for keyword, _ := range keywords {
-				categories[mapKeywordCategory[keyword]] = true
+				category:=mapKeywordCategory[keyword]
+				categories[category] = true
 				imageInfo.KeyWords = append(imageInfo.KeyWords, keyword)
+				imageInfo.Category=category
 			}
-
 			db.SetMaxImageId(dataId + 1)
 			db.SetImageInfo(imageInfo)
+			for keyword, _ := range keywords {
+				category:=mapKeywordCategory[keyword]
+				db.AddImageToCategoryAndDepth(imageInfo, category, keyword, depth)
+			}
 			for category, _ := range categories {
 				db.AddImageToCategory(imageInfo, category)
 			}
